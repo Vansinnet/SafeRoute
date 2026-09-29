@@ -4,7 +4,7 @@ Status 2026-09-29: written against Darktide 1.13.0 source. Static checks and the
 pass. In game (Spillway, 1.13.0, user report 2026-09-29): chat reported "2 branching paths found"
 and the markers showed on the roads correctly.
 
-Release v0.1.0 (2026-09-29): source `mods/active/SafeRoute/`; Standard package
+Release v1.0.0 (2026-09-29): source `mods/active/SafeRoute/`; Standard package
 `releases/SafeRoute.zip` contains `SafeRoute.mod`, five runtime Lua files, and `README.md` under
 `SafeRoute/`. SHA-256: `337119F9F3B955A9CC330CD84F2A1BECE8C06AB50568BC71A750184B30846CF8`.
 Source hash manifest: `releases/SafeRoute.source.sha256`; ZIP hash record:
