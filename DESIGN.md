@@ -6,7 +6,7 @@ and the markers showed on the roads correctly.
 
 Release v1.0.0 (2026-09-29): source `mods/active/SafeRoute/`; Standard package
 `releases/SafeRoute.zip` contains `SafeRoute.mod`, five runtime Lua files, and `README.md` under
-`SafeRoute/`. SHA-256: `337119F9F3B955A9CC330CD84F2A1BECE8C06AB50568BC71A750184B30846CF8`.
+`SafeRoute/`. SHA-256: `A1C82CE6DDE30700CF5FA074DCA7FD137E51F42AE6E0638731AF941C0639972A`.
 Source hash manifest: `releases/SafeRoute.source.sha256`; ZIP hash record:
 `releases/SafeRoute.zip.sha256`. `tests/` and `DESIGN.md` are development-only, not in the ZIP.
 `tools/validate.ps1` and `tools/release-mod.ps1 -Mod SafeRoute` passed (LuaLS: zero diagnostics;
@@ -18,9 +18,9 @@ and enable/disable or mission-transition cleanup remain untested. Roll back by r
 ## What it does
 Spillway (zone `depths`, 1.13.0) has branching paths. At each fork the mission keeps one road and
 the others lead into the pox gas, locked doors or extra tasks. SafeRoute puts a green "SAFE ROUTE"
-marker a few metres into the kept road (plus small markers every 12 m along it) and a red
-"WRONG WAY" marker into each other road. Markers show through walls within the set range. The mod
-has no mission names: it works on any level whose main path defines crossroads.
+marker a few metres into the kept road (plus optional small markers every 12 m along it, off by
+default) and a red "WRONG WAY" marker into each other road. Markers show through walls within the
+set range. The mod has no mission names: it works on any level whose main path defines crossroads.
 
 ## How the client knows the road (source evidence, 1.13.0)
 - `MainPathManager.setup_for_level` (`scripts/managers/main_path/main_path_manager.lua:34-50`) calls

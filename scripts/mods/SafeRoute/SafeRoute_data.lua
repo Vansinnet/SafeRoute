@@ -16,7 +16,7 @@ return {
                 setting_id = "show_breadcrumbs",
                 type = "checkbox",
                 tooltip = "show_breadcrumbs_tooltip",
-                default_value = true,
+                default_value = false,
             },
             {
                 setting_id = "max_distance",

@@ -16,7 +16,7 @@ The choice is determined from the mission's level seed, which the client already
 | Setting | Default | Effect |
 | --- | --- | --- |
 | Mark wrong roads | On | Show red markers on roads the mission did not choose. |
-| Markers along the safe road | On | Add small green markers every 12 metres. |
+| Markers along the safe road | Off | Add small green markers every 12 metres when enabled. |
 | Marker range (m) | 60 (20–200) | Maximum distance at which markers are shown. |
 | Announce in chat | On | Report how many branching paths the mission has. |
 
