@@ -4,8 +4,8 @@ return {
         sv = "SafeRoute",
     },
     mod_description = {
-        en = "Marks the safe road at every branching path (Spillway): green markers lead into the road the mission keeps, red markers the other roads.",
-        sv = "Markerar den säkra vägen vid varje förgrening (Spillway): gröna markörer leder in i vägen uppdraget behåller, röda markerar de andra vägarna.",
+        en = "Marks the safe road at every branching path (Spillway): SAFE ROUTE and WRONG WAY markers on the roads, and guide dots from each fork to them.",
+        sv = "Markerar den säkra vägen vid varje förgrening (Spillway): SÄKER VÄG- och FEL VÄG-markörer på vägarna, och vägledande prickar från varje förgrening fram till dem.",
     },
     show_wrong_roads = {
         en = "Mark wrong roads",
@@ -15,21 +15,21 @@ return {
         en = "Shows a red marker a few metres into every road the mission did not choose.",
         sv = "Visar en röd markör en bit in i varje väg som uppdraget inte valde.",
     },
-    show_breadcrumbs = {
-        en = "Markers along the safe road",
-        sv = "Markörer längs den säkra vägen",
+    show_guide_dots = {
+        en = "Guide dots from the fork",
+        sv = "Vägledande prickar från förgreningen",
     },
-    show_breadcrumbs_tooltip = {
-        en = "Places small green markers every 12 metres along the safe road.",
-        sv = "Sätter små gröna markörer var 12:e meter längs den säkra vägen.",
+    show_guide_dots_tooltip = {
+        en = "Dots along the walkable path (also up stairs) from each fork: green to the SAFE ROUTE marker, red to each WRONG WAY marker (red only with Mark wrong roads). The dots hide behind walls.",
+        sv = "Prickar längs gångvägen (även uppför trappor) från varje förgrening: gröna till SÄKER VÄG-markören, röda till varje FEL VÄG-markör (röda bara med Markera fel vägar). Prickarna döljs bakom väggar.",
     },
     max_distance = {
         en = "Marker range (m)",
         sv = "Markörernas räckvidd (m)",
     },
     max_distance_tooltip = {
-        en = "Markers show through walls when you are closer than this.",
-        sv = "Markörerna syns genom väggar när du är närmare än så här.",
+        en = "Markers and dots are shown when you are closer than this. SAFE ROUTE and WRONG WAY markers show through walls.",
+        sv = "Markörer och prickar visas när du är närmare än så här. SÄKER VÄG- och FEL VÄG-markörerna syns genom väggar.",
     },
     announce = {
         en = "Announce in chat",
@@ -54,6 +54,14 @@ return {
     crossroad_line = {
         en = "Branching %d: safe road %s of %d",
         sv = "Förgrening %d: säker väg %s av %d",
+    },
+    guide_found = {
+        en = "  Fork found (%d path nodes lead in, %.1f m from the road start)",
+        sv = "  Förgrening hittad (%d vägnoder leder dit, %.1f m från vägens början)",
+    },
+    guide_missing = {
+        en = "  Fork not found: guide dots start at each road's first node",
+        sv = "  Förgrening hittades inte: prickarna börjar vid varje vägs första nod",
     },
     no_crossroads = {
         en = "SafeRoute: this mission has no branching paths.",

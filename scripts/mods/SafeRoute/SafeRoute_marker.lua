@@ -120,6 +120,37 @@ template.on_enter = function(widget, marker)
     widget.content.icon = data.icon or widget.content.icon
     widget.content.label = data.label or ""
     marker.template.max_distance = data.max_distance or template.max_distance
+
+    -- With check_line_of_sight the HUD raycasts camera -> marker and stores marker.raycast_result
+    -- (true when something is in the way); hidden until the first result arrives.
+    local check_line_of_sight = data.check_line_of_sight == true
+
+    marker.template.check_line_of_sight = check_line_of_sight
+    widget.content.line_of_sight_progress = check_line_of_sight and 0 or 1
+    widget.alpha_multiplier = widget.content.line_of_sight_progress
+end
+
+local LINE_OF_SIGHT_SPEED = 8
+
+-- Fades like the game's interaction markers (world_marker_template_interaction.lua:741-752).
+template.update_function = function(_, _, widget, marker, marker_template, dt)
+    if not marker_template.check_line_of_sight then
+        return
+    end
+
+    local content = widget.content
+    local progress = content.line_of_sight_progress or 0
+
+    if marker.raycast_initialized then
+        if marker.raycast_result then
+            progress = math.max(progress - dt * LINE_OF_SIGHT_SPEED, 0)
+        else
+            progress = math.min(progress + dt * LINE_OF_SIGHT_SPEED, 1)
+        end
+    end
+
+    content.line_of_sight_progress = progress
+    widget.alpha_multiplier = progress
 end
 
 return template

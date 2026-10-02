@@ -13,10 +13,10 @@ return {
                 default_value = true,
             },
             {
-                setting_id = "show_breadcrumbs",
+                setting_id = "show_guide_dots",
                 type = "checkbox",
-                tooltip = "show_breadcrumbs_tooltip",
-                default_value = false,
+                tooltip = "show_guide_dots_tooltip",
+                default_value = true,
             },
             {
                 setting_id = "max_distance",
