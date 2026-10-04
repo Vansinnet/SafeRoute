@@ -20,8 +20,8 @@ return {
         sv = "Vägledande prickar från förgreningen",
     },
     show_guide_dots_tooltip = {
-        en = "Dots along the walkable path (also up stairs) from each fork: green to the SAFE ROUTE marker, red to each WRONG WAY marker (red only with Mark wrong roads). The dots hide behind walls.",
-        sv = "Prickar längs gångvägen (även uppför trappor) från varje förgrening: gröna till SÄKER VÄG-markören, röda till varje FEL VÄG-markör (röda bara med Markera fel vägar). Prickarna döljs bakom väggar.",
+        en = "Dots along routes walked in game, from each fork: green to the SAFE ROUTE marker, red to each WRONG WAY marker (red only with Mark wrong roads). The dots hide behind walls. Roads without a recorded route get no dots.",
+        sv = "Prickar längs vägar som gåtts in i spelet, från varje förgrening: gröna till SÄKER VÄG-markören, röda till varje FEL VÄG-markör (röda bara med Markera fel vägar). Prickarna döljs bakom väggar. Vägar utan inspelad väg får inga prickar.",
     },
     max_distance = {
         en = "Marker range (m)",
@@ -55,14 +55,6 @@ return {
         en = "Branching %d: safe road %s of %d",
         sv = "Förgrening %d: säker väg %s av %d",
     },
-    guide_found = {
-        en = "  Fork found (%d path nodes lead in, %.1f m from the road start)",
-        sv = "  Förgrening hittad (%d vägnoder leder dit, %.1f m från vägens början)",
-    },
-    guide_missing = {
-        en = "  Fork not found: guide dots start at each road's first node",
-        sv = "  Förgrening hittades inte: prickarna börjar vid varje vägs första nod",
-    },
     no_crossroads = {
         en = "SafeRoute: this mission has no branching paths.",
         sv = "SafeRoute: det här uppdraget har inga förgreningar.",
@@ -70,5 +62,13 @@ return {
     command_description = {
         en = "List the branching paths of this mission and their safe road.",
         sv = "Lista uppdragets förgreningar och deras säkra väg.",
+    },
+    route_recorded = {
+        en = "  Fork %s road %s: guide route recorded",
+        sv = "  Förgrening %s väg %s: guidevägen är inspelad",
+    },
+    route_missing = {
+        en = "  Fork %s road %s: no guide route",
+        sv = "  Förgrening %s väg %s: ingen guideväg",
     },
 }

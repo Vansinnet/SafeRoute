@@ -1,7 +1,6 @@
 local mod = get_mod("SafeRoute")
-local Navigation = require("scripts/extension_systems/navigation/utilities/navigation")
-local NavQueries = require("scripts/utilities/nav_queries")
 local Routes = mod:io_dofile("SafeRoute/scripts/mods/SafeRoute/routes")
+local RecordedRoutes = mod:io_dofile("SafeRoute/scripts/mods/SafeRoute/recorded_routes")
 local MarkerTemplate = mod:io_dofile("SafeRoute/scripts/mods/SafeRoute/SafeRoute_marker")
 
 local SAFE_COLOR = { 90, 230, 110 }
@@ -13,15 +12,13 @@ local ENTRY_DISTANCE = 8
 local MARKER_HEIGHT = 1.2
 local DOT_SIZE = 26
 local DOT_SPACING = 2
--- Guide dots sit on the nav mesh (the walkable floor), raised this much.
+-- Guide dots stop this far before the end of a route; the road's marker goes this far past the last dot.
+local DOT_STOP_SHORT = 1.5
+local MARKER_AFTER_LAST_DOT = 1
+-- Guide dots are drawn on routes recorded by walking them (recorded_routes.lua),
+-- like Markers Improved AIO's hand-placed guides: a dot is always where a player stood. Recorded
+-- points are the player's feet; dots float this much above them.
 local DOT_HEIGHT = 0.6
--- Search box when snapping a main path node to the nav mesh.
-local NAV_ABOVE, NAV_BELOW, NAV_LATERAL = 2, 2, 2
--- A path search that has not finished after this many seconds is cancelled.
-local LEG_TIMEOUT = 3
--- Test builds: one console log line per path search ("[MOD][SafeRoute][INFO] guide ..."). Off for
--- releases.
-local LOG_GUIDE_PATHS = false
 
 -- Removed options: "Markers along the safe road" (v1.0.0) and options from test builds. Their stored
 -- values are never read; drop them from the settings file.
@@ -41,19 +38,6 @@ local state = {
     markers = {},
     guides_placed = {},
 }
--- Nav objects for the guide paths. They live in the mission's nav world, which the game destroys
--- right after the main path manager, so they are released from the MainPathManager.destroy hook.
-local nav = {
-    world = nil,
-    traverse_logic = nil,
-    cost_table = nil,
-    astar = nil,
-    running = false,
-    leg_time = 0,
-    jobs = {},
-    job = nil,
-}
-
 local function refresh_config()
     config.show_wrong_roads = mod:get("show_wrong_roads")
     config.max_distance = mod:get("max_distance")
@@ -85,41 +69,8 @@ local function remove_markers()
     state.placed = false
 end
 
-local function forget_nav()
-    nav.world = nil
-    nav.traverse_logic = nil
-    nav.cost_table = nil
-    nav.astar = nil
-    nav.running = false
-    nav.job = nil
-    table.clear(nav.jobs)
-end
-
--- Only while the nav world is alive.
-local function destroy_nav()
-    local astar = nav.astar
-
-    if astar then
-        if nav.running and not GwNavAStar.processing_finished(astar) then
-            GwNavAStar.cancel(astar)
-        end
-
-        GwNavAStar.destroy(astar)
-    end
-
-    if nav.traverse_logic then
-        GwNavTraverseLogic.destroy(nav.traverse_logic)
-        GwNavTagLayerCostTable.destroy(nav.cost_table)
-    end
-
-    forget_nav()
-end
-
 local function forget_mission()
     remove_markers()
-    -- The hook has already destroyed the nav objects; if it did not run, the nav world is gone and
-    -- they must not be touched.
-    forget_nav()
     state.main_path = nil
     state.crossroads = nil
     state.announced = false
@@ -145,173 +96,18 @@ local function load_crossroads(main_path)
     end)
 end
 
--- One job per road: the walkable path from the fork into the road, up to its SAFE ROUTE / WRONG WAY
--- marker. The fork is where the path into the crossroad ends, or else the road's first node.
-local function queue_guide_jobs(crossroads)
-    for index, crossroad in ipairs(crossroads) do
-        local approach = crossroad.approach
+local function resource_name()
+    local main_path = state.main_path
 
-        crossroad.guide_paths = {}
-
-        if crossroad.safe_road_id ~= nil then
-            for _, road in ipairs(crossroad.roads) do
-                if #road.points > 0 then
-                    local waypoints = Routes.head(road.points, ENTRY_DISTANCE)
-
-                    if approach then
-                        table.insert(waypoints, 1, approach[#approach])
-                    end
-
-                    nav.jobs[#nav.jobs + 1] = {
-                        label = string.format("fork %d road %s%s", index, tostring(road.id), road.safe and " (safe)" or ""),
-                        waypoints = waypoints,
-                        store = function(path)
-                            crossroad.guide_paths[road.id] = path
-                        end,
-                    }
-                end
-            end
-        end
-    end
+    return main_path and main_path._main_path_resource_name
 end
 
-local function ensure_nav()
-    if nav.astar then
-        return true
-    end
+local function recorded_route(crossroads_id, road_id)
+    local name = resource_name()
+    local by_crossroad = name and RecordedRoutes[name]
+    local by_road = by_crossroad and by_crossroad[crossroads_id]
 
-    local nav_mesh = Managers.state.nav_mesh
-    local nav_world = nav_mesh and nav_mesh:nav_world()
-
-    if not nav_world then
-        return false
-    end
-
-    -- Same as the client's own traverse logic (nav_mesh_manager.lua:333-343): the level's allowed
-    -- nav tag layers at cost 1.
-    local traverse_logic, cost_table = Navigation.create_traverse_logic(nav_world, {}, nil, false)
-
-    nav.world = nav_world
-    nav.traverse_logic = traverse_logic
-    nav.cost_table = cost_table
-    nav.astar = GwNavAStar.create()
-
-    return true
-end
-
-local function on_nav_mesh(point)
-    return NavQueries.position_on_mesh_with_outside_position(nav.world, nav.traverse_logic,
-        Vector3(point[1], point[2], point[3]), NAV_ABOVE, NAV_BELOW, NAV_LATERAL)
-end
-
-local function to_point(position)
-    return { position.x, position.y, position.z }
-end
-
-local function format_point(point)
-    if not point then
-        return "none"
-    end
-
-    return string.format("(%.1f, %.1f, %.1f)", point[1], point[2], point[3])
-end
-
-local function log_guide(job, format, ...)
-    if LOG_GUIDE_PATHS then
-        mod:info("guide %s: " .. format, job.label, ...)
-    end
-end
-
--- Runs the A* legs between consecutive waypoints, one leg at a time across frames. A waypoint off
--- the nav mesh, or a leg without a path, falls back to the straight main path line.
-local function step_nav(dt)
-    local astar, nav_world, traverse_logic = nav.astar, nav.world, nav.traverse_logic
-
-    if not astar or not nav_world or not traverse_logic then
-        return
-    end
-
-    local job = nav.job
-
-    if not job then
-        job = table.remove(nav.jobs, 1)
-
-        if not job then
-            return
-        end
-
-        local first = on_nav_mesh(job.waypoints[1])
-
-        job.leg = 1
-        job.path = { first and to_point(first) or job.waypoints[1] }
-        nav.job = job
-        log_guide(job, "%d waypoints from %s to %s", #job.waypoints, format_point(job.waypoints[1]),
-            format_point(job.waypoints[#job.waypoints]))
-    end
-
-    if nav.running then
-        if not GwNavAStar.processing_finished(astar) then
-            nav.leg_time = nav.leg_time + dt
-
-            if nav.leg_time < LEG_TIMEOUT then
-                return
-            end
-
-            GwNavAStar.cancel(astar)
-            nav.running = false
-            log_guide(job, "leg %d timed out after %.1f s, straight line used", job.leg, nav.leg_time)
-            Routes.append(job.path, job.leg_end)
-        else
-            nav.running = false
-
-            if GwNavAStar.path_found(astar) then
-                local leg_path = {}
-
-                for i = 1, GwNavAStar.node_count(astar) do
-                    local point = to_point(GwNavAStar.node_at_index(astar, i))
-
-                    leg_path[#leg_path + 1] = point
-                    Routes.append(job.path, point)
-                end
-
-                log_guide(job, "leg %d path found, %d nodes, %.1f m (straight %.1f m)", job.leg, #leg_path,
-                    Routes.length(leg_path), Routes.length({ job.leg_start, job.leg_end }))
-            else
-                log_guide(job, "leg %d no path between %s and %s, straight line used", job.leg,
-                    format_point(job.leg_start), format_point(job.leg_end))
-                Routes.append(job.path, job.leg_end)
-            end
-        end
-
-        job.leg = job.leg + 1
-    end
-
-    local waypoints = job.waypoints
-
-    while job.leg < #waypoints do
-        local from = on_nav_mesh(waypoints[job.leg])
-        local to = on_nav_mesh(waypoints[job.leg + 1])
-
-        if from and to then
-            job.leg_start = to_point(from)
-            job.leg_end = to_point(to)
-            GwNavAStar.start(astar, nav_world, from, to, traverse_logic)
-            nav.running = true
-            nav.leg_time = 0
-
-            return
-        end
-
-        log_guide(job, "leg %d off the nav mesh (%s -> %s, snapped %s -> %s), straight line used", job.leg,
-            format_point(waypoints[job.leg]), format_point(waypoints[job.leg + 1]),
-            format_point(from and to_point(from)), format_point(to and to_point(to)))
-        Routes.append(job.path, waypoints[job.leg + 1])
-        job.leg = job.leg + 1
-    end
-
-    log_guide(job, "done, %d points, %.1f m", #job.path, Routes.length(job.path))
-    job.store(job.path)
-    nav.job = nil
+    return by_road and by_road[road_id]
 end
 
 local function add_marker(key, point, height, data)
@@ -323,6 +119,33 @@ local function add_marker(key, point, height, data)
     end, data)
 end
 
+-- Green dots start at the fork; red dots one step in, so the fork is marked once.
+local function first_dot_distance(road)
+    return road.safe and 0 or DOT_SPACING
+end
+
+-- With a recorded route, the marker stands 1 m past the route's last guide dot; otherwise 8 m
+-- along the road's main path.
+local function marker_point(crossroad, road)
+    local route = recorded_route(crossroad.id, road.id)
+
+    if not route then
+        return Routes.point_along(road.points, ENTRY_DISTANCE)
+    end
+
+    local length = Routes.length(route)
+    local first = first_dot_distance(road)
+    local wanted = length
+
+    if length - DOT_STOP_SHORT >= first then
+        local last_dot = first + math.floor((length - DOT_STOP_SHORT - first) / DOT_SPACING) * DOT_SPACING
+
+        wanted = math.min(last_dot + MARKER_AFTER_LAST_DOT, length)
+    end
+
+    return Routes.point_along(route, wanted)
+end
+
 -- The SAFE ROUTE / WRONG WAY markers show through walls.
 local function add_crossroad_markers(index, crossroad)
     for _, road in ipairs(crossroad.roads) do
@@ -332,13 +155,13 @@ local function add_crossroad_markers(index, crossroad)
             local key = index .. ":" .. tostring(road.id)
 
             if road.safe then
-                add_marker(key, Routes.point_along(points, ENTRY_DISTANCE), MARKER_HEIGHT, {
+                add_marker(key, marker_point(crossroad, road), MARKER_HEIGHT, {
                     color = SAFE_COLOR,
                     icon = SAFE_ICON,
                     label = mod:localize("label_safe"),
                 })
             elseif config.show_wrong_roads and crossroad.safe_road_id ~= nil then
-                add_marker(key, Routes.point_along(points, ENTRY_DISTANCE), MARKER_HEIGHT, {
+                add_marker(key, marker_point(crossroad, road), MARKER_HEIGHT, {
                     color = WRONG_COLOR,
                     icon = WRONG_ICON,
                     label = mod:localize("label_wrong"),
@@ -360,23 +183,24 @@ local function add_dots(key, points, color, icon)
     end
 end
 
--- Dots along the walkable path from the fork to each road's marker, stopping short of the marker:
--- green to SAFE ROUTE, red to WRONG WAY (with "Mark wrong roads"). Only the safe path has a dot at the
--- fork itself, so the fork is not marked twice. Paths arrive a few frames after the mission starts.
+-- Dots along the recorded route from the fork to each road's marker: green to SAFE ROUTE, red to
+-- WRONG WAY (with "Mark wrong roads"). Only the safe route has a dot at the fork itself.
 local function add_guide_markers(index, crossroad)
     local placed = state.guides_placed
 
     for _, road in ipairs(crossroad.roads) do
-        local path = crossroad.guide_paths and crossroad.guide_paths[road.id]
+        local route = recorded_route(crossroad.id, road.id)
         local key = index .. ":guide:" .. tostring(road.id)
 
-        if path and not placed[key] and (road.safe or config.show_wrong_roads) then
+        if route and not placed[key] and crossroad.safe_road_id ~= nil and (road.safe or config.show_wrong_roads) then
             placed[key] = true
 
+            local dots = Routes.spaced_points(route, first_dot_distance(road), DOT_SPACING, DOT_STOP_SHORT)
+
             if road.safe then
-                add_dots(key, Routes.spaced_points(path, 0, DOT_SPACING, 1.5), SAFE_COLOR, SAFE_ICON)
+                add_dots(key, dots, SAFE_COLOR, SAFE_ICON)
             else
-                add_dots(key, Routes.spaced_points(path, DOT_SPACING, DOT_SPACING, 1.5), WRONG_COLOR, WRONG_ICON)
+                add_dots(key, dots, WRONG_COLOR, WRONG_ICON)
             end
         end
     end
@@ -420,15 +244,14 @@ local function describe_crossroads(crossroads)
 
         mod:echo(mod:localize("crossroad_line", index, safe ~= nil and tostring(safe) or "?", crossroad.num_roads))
 
-        if crossroad.approach then
-            mod:echo(mod:localize("guide_found", #crossroad.approach, crossroad.approach_gap))
-        else
-            mod:echo(mod:localize("guide_missing"))
+        for _, road in ipairs(crossroad.roads) do
+            mod:echo(mod:localize(recorded_route(crossroad.id, road.id) and "route_recorded" or "route_missing",
+                tostring(crossroad.id), tostring(road.id)))
         end
     end
 end
 
-mod.update = function(dt)
+mod.update = function()
     if not mod:is_enabled() then
         return
     end
@@ -439,10 +262,6 @@ mod.update = function(dt)
         forget_mission()
         state.main_path = main_path
         state.crossroads = main_path and load_crossroads(main_path)
-
-        if state.crossroads then
-            queue_guide_jobs(state.crossroads)
-        end
     end
 
     local crossroads = state.crossroads
@@ -456,19 +275,8 @@ mod.update = function(dt)
         mod:echo(mod:localize("announce_text", #crossroads))
     end
 
-    -- Paths are searched once the HUD exists, so the level's nav mesh is in place.
-    if state.element and (nav.job or #nav.jobs > 0) and ensure_nav() then
-        step_nav(dt)
-    end
-
     place_markers(crossroads)
 end
-
-mod:hook("MainPathManager", "destroy", function(func, self, ...)
-    destroy_nav()
-
-    return func(self, ...)
-end)
 
 mod.on_setting_changed = function()
     refresh_config()
@@ -477,14 +285,10 @@ end
 
 mod.on_disabled = function()
     remove_markers()
-    destroy_nav()
-    -- Searches restart from scratch when the mod is enabled again.
-    state.main_path = nil
 end
 
 mod.on_unload = function()
     remove_markers()
-    destroy_nav()
 end
 
 mod:command("saferoute", mod:localize("command_description"), function()
